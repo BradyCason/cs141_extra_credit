@@ -1,6 +1,5 @@
 use std::fs;
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::disk_manager::{DiskManager, disk::Disk, directory_manager::FileInfo};
@@ -37,7 +36,7 @@ impl User {
         // Read user file
         let contents = fs::read_to_string(&self.name)
             .expect(&format!("Could not read file {}", self.name));
-        
+
         // Iterate through lines
         for line in contents.lines() {
             self.handle_line(line);
@@ -100,7 +99,7 @@ impl User {
         // Request disk from disk manager
         loop {
             let mut dm = self.disk_manager.write().unwrap();
-            (self.cur_disk, self.cur_disk_id, self.cur_base_sector) = (*dm).request();
+            (self.cur_disk, self.cur_disk_id, self.cur_base_sector) = dm.request();
             if self.cur_disk.is_some() {
                 break;
             }
@@ -139,8 +138,6 @@ impl User {
                     },
                     (None, _) => {}
                 }
-
-                thread::sleep(Duration::from_millis(1));
             }
 
             // Get file info
@@ -160,6 +157,8 @@ impl User {
                 return;
             };
 
+            drop(disk_manager);
+
             // Gain control of disk
             let disk = disk.read().unwrap();
             let mut printer = printer.lock().unwrap();
@@ -167,6 +166,7 @@ impl User {
             // Print each line to the printer
             for i in 0..file_info.file_length {
                 let line = disk.read(file_info.starting_sector + i);
+                // println!("{line}");
                 printer.print(line).expect("Failed to print line");
             }
 

@@ -1,6 +1,4 @@
 use std::sync::{Arc, RwLock};
-use std::thread;
-use std::time::Duration;
 
 pub mod disk;
 use disk::Disk;
@@ -45,7 +43,7 @@ impl DiskManager {
                 self.disks_free[id] = false;
 
                 return (
-                    Some(Arc::clone(&self.disks[0])),
+                    Some(Arc::clone(&self.disks[id])),
                     id,
                     self.get_next_free_sector(id)
                 );

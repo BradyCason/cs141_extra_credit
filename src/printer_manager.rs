@@ -3,6 +3,8 @@ use std::sync::{Arc, Mutex};
 pub mod printer;
 use printer::Printer;
 
+use crate::GuiState;
+
 pub struct PrinterManager {
     num_printers: usize,
     printers: Vec<Arc<Mutex<Printer>>>,
@@ -10,12 +12,12 @@ pub struct PrinterManager {
 }
 
 impl PrinterManager {
-    pub fn new(num_printers: usize) -> Self {
+    pub fn new(num_printers: usize, gui_state: Arc<Mutex<GuiState>>) -> Self {
         let mut printers = Vec::new();
         let mut printers_free = Vec::new();
 
         for i in 0..num_printers {
-            printers.push(Arc::new(Mutex::new(Printer::new(i))));
+            printers.push(Arc::new(Mutex::new(Printer::new(i, Arc::clone(&gui_state)))));
             printers_free.push(true);
         }
 

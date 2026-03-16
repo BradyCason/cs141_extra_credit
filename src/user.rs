@@ -4,8 +4,10 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use crate::disk_manager::{DiskManager, disk::Disk, directory_manager::FileInfo};
 use crate::printer_manager::{PrinterManager, printer::Printer};
+use crate::GuiState;
 
 pub struct User {
+    id: usize,
     name: String,
     cur_file: Option<String>,
     cur_disk_id: usize,
@@ -15,11 +17,13 @@ pub struct User {
     print_thread_handles: Vec<JoinHandle<()>>,
     disk_manager: Arc<RwLock<DiskManager>>,
     printer_manager: Arc<Mutex<PrinterManager>>,
+    gui_state: Arc<Mutex<GuiState>>,
 }
 
 impl User {
-    pub fn new(id: usize, disk_manager: Arc<RwLock<DiskManager>>, printer_manager: Arc<Mutex<PrinterManager>>) -> Self {
+    pub fn new(id: usize, disk_manager: Arc<RwLock<DiskManager>>, printer_manager: Arc<Mutex<PrinterManager>>, gui_state: Arc<Mutex<GuiState>>) -> Self {
         Self {
+            id,
             name: format!("users/USER{id}"),
             cur_file: None,
             cur_disk_id: 0,
@@ -29,6 +33,7 @@ impl User {
             print_thread_handles: Vec::new(),
             disk_manager,
             printer_manager,
+            gui_state,
         }
     }
 
@@ -46,6 +51,10 @@ impl User {
         for handle in self.print_thread_handles.drain(..) {
             handle.join().unwrap();
         }
+
+        // Update GUI
+        let mut gui_state = self.gui_state.lock().unwrap();
+        gui_state.update_user(self.id, "User Finished".to_string());
     }
 
     fn handle_line(&mut self, line: &str) {
@@ -55,17 +64,30 @@ impl User {
         } else if let Some(rest) = line.strip_prefix(".save ") {
             // Begin saving a file
             self.handle_save_command(rest.to_string());
-            println!("Saving file: {}", rest);
+
+            // Update GUI
+            {
+                let mut gui_state = self.gui_state.lock().unwrap();
+                gui_state.update_user(self.id, format!("Saving file: {rest}"));
+            }
         } else if let Some(rest) = line.strip_prefix(".print ") {
             // Create new print thread
             self.handle_print_command(rest.to_string());
 
-            println!("Printing file: {rest}");
+            // Update GUI
+            {
+                let mut gui_state = self.gui_state.lock().unwrap();
+                gui_state.update_user(self.id, format!("Printing file: {rest}"));
+            }
         } else if self.cur_file.is_some(){
             // Save line in file
             self.save_line(line.to_string());
         } else {
-            println!("Unknown Command");
+            // Update GUI
+            {
+                let mut gui_state = self.gui_state.lock().unwrap();
+                gui_state.update_user(self.id, "Unknown Command".to_string());
+            }
         }
     }
 

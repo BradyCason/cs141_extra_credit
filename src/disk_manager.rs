@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Mutex};
 
 pub mod disk;
 use disk::Disk;
@@ -6,6 +6,8 @@ use disk::Disk;
 pub mod directory_manager;
 use directory_manager::DirectoryManager;
 use directory_manager::FileInfo;
+
+use crate::GuiState;
 
 pub struct DiskManager {
     num_disks: usize,
@@ -16,13 +18,13 @@ pub struct DiskManager {
 }
 
 impl DiskManager {
-    pub fn new(num_disks: usize) -> Self {
+    pub fn new(num_disks: usize, gui_state: Arc<Mutex<GuiState>>) -> Self {
         let mut disks = Vec::new();
         let mut disks_free = Vec::new();
         let mut next_free_sectors = Vec::new();
 
-        for _ in 0..num_disks {
-            disks.push(Arc::new(RwLock::new(Disk::new())));
+        for i in 0..num_disks {
+            disks.push(Arc::new(RwLock::new(Disk::new(i, Arc::clone(&gui_state)))));
             disks_free.push(true);
             next_free_sectors.push(0);
         }

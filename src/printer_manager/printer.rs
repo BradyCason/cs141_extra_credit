@@ -27,6 +27,7 @@ impl Printer {
     }
 
     pub fn print(&mut self, data: String) -> Result<()> {
+
         thread::sleep(Duration::from_millis(Self::PRINT_DELAY));
         
         let mut file = OpenOptions::new()
@@ -38,7 +39,7 @@ impl Printer {
         writeln!(file, "{data}").expect("Print failed");
 
         let mut gui_state = self.gui_state.lock().unwrap();
-        gui_state.update_printer(self.id, data);
+        gui_state.update_printer(self.id, None);
 
         Ok(())
     }

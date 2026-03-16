@@ -13,9 +13,11 @@ pub fn run_gui(gui_state: Arc<Mutex<GuiState>>) -> Result<(), eframe::Error> {
 #[derive(Default)]
 pub struct GuiState {
     user_commands: Vec<String>,
+    disk_actions: Vec<String>,
     disk_percentages: Vec<f32>,
     printer_strings: Vec<String>,
     num_printed_lines: Vec<usize>,
+    prints_waiting: usize,
 }
 
 impl GuiState {
@@ -25,8 +27,10 @@ impl GuiState {
             user_commands.push(String::new());
         }
 
+        let mut disk_actions = Vec::new();
         let mut disk_percentages = Vec::new();
         for _ in 0..num_disks {
+            disk_actions.push("Not in use".to_string());
             disk_percentages.push(0.0);
         }
 
@@ -39,9 +43,11 @@ impl GuiState {
 
         Self {
             user_commands,
+            disk_actions,
             disk_percentages,
             printer_strings,
             num_printed_lines,
+            prints_waiting: 0,
         }
     }
 
@@ -49,13 +55,26 @@ impl GuiState {
         self.user_commands[id] = command;
     }
 
-    pub fn update_disk(&mut self, id: usize, percentage: f32) {
+    pub fn update_disk(&mut self, id: usize, action: String, percentage: f32) {
+        self.disk_actions[id] = action;
         self.disk_percentages[id] = percentage;
     }
 
-    pub fn update_printer(&mut self, id: usize, new_print: String) {
-        self.num_printed_lines[id] += 1;
-        self.printer_strings[id] = format!("{}\n{}", self.printer_strings[id], new_print);
+    pub fn update_printer(&mut self, id: usize, file: Option<String>) {
+        if let Some(file_name) = file {
+            self.num_printed_lines[id] += 1;
+            self.printer_strings[id] = format!("Printing file: {file_name}");
+        } else {
+            self.printer_strings[id] = "Not in use".to_string();
+        }
+    }
+
+    pub fn increase_prints_waiting(&mut self) {
+        self.prints_waiting += 1;
+    }
+
+    pub fn decrease_prints_waiting(&mut self) {
+        self.prints_waiting -= 1;
     }
 }
 
@@ -85,7 +104,7 @@ impl OsGui {
         });
     }
 
-    fn show_disk_data(ui: &mut egui::Ui, id: usize, percentage: f32) {
+    fn show_disk_data(ui: &mut egui::Ui, id: usize, action: String, percentage: f32) {
         ui.group(|ui| {
             ui.horizontal(|ui| {
 
@@ -93,13 +112,17 @@ impl OsGui {
 
                 ui.separator();
 
-                ui.label(format!("{}%", percentage * 100.0));
+                ui.label(action);
+
+                ui.separator();
+
+                ui.label(format!("{}% full", percentage * 100.0));
 
             });
         });
     }
 
-    fn show_printer_data(ui: &mut egui::Ui, id: usize, data: &mut String, num_lines: usize, num_printers: usize) {
+    fn show_printer_data(ui: &mut egui::Ui, id: usize, file_string: String, num_lines: usize) {
         ui.group(|ui| {
             ui.horizontal(|ui| {
 
@@ -107,7 +130,12 @@ impl OsGui {
 
                 ui.separator();
 
-                ui.label(format!("{num_lines} lines"));
+                ui.label(format!("Lines printed: {num_lines}"));
+
+                ui.separator();
+
+
+                ui.label(format!("{file_string}"));
 
             });
         });
@@ -159,15 +187,16 @@ impl eframe::App for OsGui {
 
         egui::SidePanel::right("right_panel").show(ctx, |ui| {
             ui.heading("Printer Info");
+            ui.label(format!("Print Jobs Waiting: {}", state.prints_waiting));
             for id in 0..state.printer_strings.len() {
-                OsGui::show_printer_data(ui, id, &mut state.printer_strings[id].clone(), state.num_printed_lines[id], state.printer_strings.len());
+                OsGui::show_printer_data(ui, id, state.printer_strings[id].clone(), state.num_printed_lines[id]);
             }
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Disk Percentage Used");
+            ui.heading("Disk Info");
             for id in 0..state.disk_percentages.len() {
-                OsGui::show_disk_data(ui, id, state.disk_percentages[id]);
+                OsGui::show_disk_data(ui, id, state.disk_actions[id].clone(), state.disk_percentages[id]);
             }
         });
 

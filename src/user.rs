@@ -44,6 +44,12 @@ impl User {
 
         // Iterate through lines
         for line in contents.lines() {
+            loop {
+                let gui_state = self.gui_state.lock().unwrap();
+                if gui_state.user_active(self.id) {
+                    break;
+                }
+            }
             self.handle_line(line);
         }
 
@@ -61,15 +67,15 @@ impl User {
 
     fn handle_line(&mut self, line: &str) {
         if line.starts_with(".end") {
-            // End current file
-            self.handle_end_command();
-
             // Update disk GUI
             if let Some(disk_mutex) = &self.cur_disk {
                 // Get and lock the disk
                 let disk = disk_mutex.read().unwrap();
                 disk.update_gui("Not in use".to_string());
             }
+
+            // End current file
+            self.handle_end_command();
         } else if let Some(rest) = line.strip_prefix(".save ") {
             // Begin saving a file
             self.handle_save_command(rest.to_string());
@@ -96,6 +102,13 @@ impl User {
                 gui_state.update_user(self.id, format!("Printing file: {rest}"));
             }
         } else if self.cur_file.is_some(){
+            loop {
+                let gui_state = self.gui_state.lock().unwrap();
+                if gui_state.disk_active(self.cur_disk_id) {
+                    break;
+                }
+            }
+
             // Save line in file
             self.save_line(line.to_string());
 
@@ -227,6 +240,13 @@ impl User {
 
             // Print each line to the printer
             for line in lines {
+                loop {
+                    let gui_state = gs.lock().unwrap();
+                    if gui_state.printer_active(printer_id) {
+                        break;
+                    }
+                }
+
                 printer.print(line).expect("Failed to print line");
                 {
                     let mut gui_state = gs.lock().unwrap();

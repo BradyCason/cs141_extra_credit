@@ -10,44 +10,56 @@ pub fn run_gui(gui_state: Arc<Mutex<GuiState>>) -> Result<(), eframe::Error> {
     )
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct GuiState {
     user_commands: Vec<String>,
+    users_active: Vec<bool>,
     disk_actions: Vec<String>,
     disk_percentages: Vec<f32>,
+    disks_active: Vec<bool>,
     printer_strings: Vec<String>,
     num_printed_lines: Vec<usize>,
     prints_waiting: usize,
+    printers_active: Vec<bool>,
 }
 
 impl GuiState {
     pub fn new (num_users: usize, num_disks: usize, num_printers: usize) -> Self {
         let mut user_commands = Vec::new();
+        let mut users_active = Vec::new();
         for _ in 0..num_users {
             user_commands.push(String::new());
+            users_active.push(true);
         }
 
         let mut disk_actions = Vec::new();
         let mut disk_percentages = Vec::new();
+        let mut disks_active = Vec::new();
         for _ in 0..num_disks {
             disk_actions.push("Not in use".to_string());
             disk_percentages.push(0.0);
+            disks_active.push(true);
         }
 
         let mut printer_strings = Vec::new();
         let mut num_printed_lines = Vec::new();
+        let mut printers_active = Vec::new();
         for _ in 0..num_printers {
             printer_strings.push(String::new());
             num_printed_lines.push(0);
+            printers_active.push(true);
         }
 
         Self {
             user_commands,
+            users_active,
             disk_actions,
             disk_percentages,
+            disks_active,
             printer_strings,
             num_printed_lines,
             prints_waiting: 0,
+            printers_active,
         }
     }
 
@@ -76,6 +88,42 @@ impl GuiState {
     pub fn decrease_prints_waiting(&mut self) {
         self.prints_waiting -= 1;
     }
+
+    pub fn user_active(&self, user_id: usize) -> bool {
+        self.users_active[user_id]
+    }
+
+    pub fn set_user_active(&mut self, user_id: usize) {
+        self.users_active[user_id] = true;
+    }
+
+    pub fn set_user_inactive(&mut self, user_id: usize) {
+        self.users_active[user_id] = false;
+    }
+
+    pub fn disk_active(&self, disk_id: usize) -> bool {
+        self.disks_active[disk_id]
+    }
+
+    pub fn set_disk_active(&mut self, disk_id: usize) {
+        self.disks_active[disk_id] = true;
+    }
+
+    pub fn set_disk_inactive(&mut self, disk_id: usize) {
+        self.disks_active[disk_id] = false;
+    }
+
+    pub fn printer_active(&self, printer_id: usize) -> bool {
+        self.printers_active[printer_id]
+    }
+
+    pub fn set_printer_active(&mut self, printer_id: usize) {
+        self.printers_active[printer_id] = true;
+    }
+
+    pub fn set_printer_inactive(&mut self, printer_id: usize) {
+        self.printers_active[printer_id] = false;
+    }
 }
 
 #[derive(Default)]
@@ -90,7 +138,7 @@ impl OsGui {
         }
     }
 
-    fn show_user_data(ui: &mut egui::Ui, id: usize, command: &String) {
+    fn show_user_data(ui: &mut egui::Ui, id: usize, command: &String, gui_state: Arc<Mutex<GuiState>>) {
         ui.group(|ui| {
             ui.horizontal(|ui| {
 
@@ -100,11 +148,29 @@ impl OsGui {
 
                 ui.label(command);
 
+                ui.separator();
+
+                let active;
+                {
+                    let gui_state = gui_state.lock().unwrap();
+                    active = gui_state.user_active(id);
+                }
+                if active {
+                    if ui.button("Pause").clicked() {
+                        let mut gui_state = gui_state.lock().unwrap();
+                        gui_state.set_user_inactive(id);
+                    }
+                } else {
+                    if ui.button("Resume").clicked() {
+                        let mut gui_state = gui_state.lock().unwrap();
+                        gui_state.set_user_active(id);
+                    }
+                }
             });
         });
     }
 
-    fn show_disk_data(ui: &mut egui::Ui, id: usize, action: String, percentage: f32) {
+    fn show_disk_data(ui: &mut egui::Ui, id: usize, action: String, percentage: f32, gui_state: Arc<Mutex<GuiState>>) {
         ui.group(|ui| {
             ui.horizontal(|ui| {
 
@@ -118,11 +184,29 @@ impl OsGui {
 
                 ui.label(format!("{}% full", percentage * 100.0));
 
+                ui.separator();
+
+                let active;
+                {
+                    let gui_state = gui_state.lock().unwrap();
+                    active = gui_state.disk_active(id);
+                }
+                if active {
+                    if ui.button("Pause").clicked() {
+                        let mut gui_state = gui_state.lock().unwrap();
+                        gui_state.set_disk_inactive(id);
+                    }
+                } else {
+                    if ui.button("Resume").clicked() {
+                        let mut gui_state = gui_state.lock().unwrap();
+                        gui_state.set_disk_active(id);
+                    }
+                }
             });
         });
     }
 
-    fn show_printer_data(ui: &mut egui::Ui, id: usize, file_string: String, num_lines: usize) {
+    fn show_printer_data(ui: &mut egui::Ui, id: usize, file_string: String, num_lines: usize, gui_state: Arc<Mutex<GuiState>>) {
         ui.group(|ui| {
             ui.horizontal(|ui| {
 
@@ -134,54 +218,43 @@ impl OsGui {
 
                 ui.separator();
 
-
                 ui.label(format!("{file_string}"));
+
+                ui.separator();
+
+                let active;
+                {
+                    let gui_state = gui_state.lock().unwrap();
+                    active = gui_state.printer_active(id);
+                }
+                if active {
+                    if ui.button("Pause").clicked() {
+                        let mut gui_state = gui_state.lock().unwrap();
+                        gui_state.set_printer_inactive(id);
+                    }
+                } else {
+                    if ui.button("Resume").clicked() {
+                        let mut gui_state = gui_state.lock().unwrap();
+                        gui_state.set_printer_active(id);
+                    }
+                }
 
             });
         });
-
-        // let available_height = ui.available_height() - (500 * num_printers) as f32;
-        // let height_per_box = available_height / num_printers as f32;
-
-        // ui.group(|ui| {
-        //     ui.vertical(|ui| {
-        //         ui.label(format!("Printer {id}"));
-        //     });
-
-        //     egui::ScrollArea::vertical()
-        //         .max_height(0.0)
-        //         .show(ui, |ui| {
-        //             ui.add(
-        //                 egui::TextEdit::multiline(data)
-        //                     .lock_focus(true),
-        //             );
-        //         });
-        // });
     }
 }
 
 impl eframe::App for OsGui {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
-        // egui::CentralPanel::default().show(ctx, |ui| {
-        //     ui.heading("Hello Rust GUI!");
-
-        //     ui.label("Enter your name:");
-        //     ui.text_edit_singleline(&mut self.name);
-
-        //     if ui.button("Click me").clicked() {
-        //         println!("Hello {}", self.name);
-        //     }
-
-        //     ui.label(format!("Hello {}", self.name));
-        // });
-
-        let state = self.gui_state.lock().unwrap();
+        let state =
+        {
+            (*self.gui_state.lock().unwrap()).clone()
+        };
 
         egui::SidePanel::left("left_panel").show(ctx, |ui| {
             ui.heading("User Actions");
             for id in 0..state.user_commands.len() {
-                OsGui::show_user_data(ui, id, &state.user_commands[id]);
+                OsGui::show_user_data(ui, id, &state.user_commands[id], Arc::clone(&self.gui_state));
             }
         });
 
@@ -189,14 +262,14 @@ impl eframe::App for OsGui {
             ui.heading("Printer Info");
             ui.label(format!("Print Jobs Waiting: {}", state.prints_waiting));
             for id in 0..state.printer_strings.len() {
-                OsGui::show_printer_data(ui, id, state.printer_strings[id].clone(), state.num_printed_lines[id]);
+                OsGui::show_printer_data(ui, id, state.printer_strings[id].clone(), state.num_printed_lines[id], Arc::clone(&self.gui_state));
             }
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Disk Info");
             for id in 0..state.disk_percentages.len() {
-                OsGui::show_disk_data(ui, id, state.disk_actions[id].clone(), state.disk_percentages[id]);
+                OsGui::show_disk_data(ui, id, state.disk_actions[id].clone(), state.disk_percentages[id], Arc::clone(&self.gui_state));
             }
         });
 
